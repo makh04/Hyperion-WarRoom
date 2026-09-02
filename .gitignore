@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+.assemblyai_agent_cache.json
+.venv/
+venv/

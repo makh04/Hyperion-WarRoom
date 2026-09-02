@@ -1,0 +1,17 @@
+# Core backend - deliberately minimal. All STT/LLM/TTS work happens on AssemblyAI's (and
+# Groq's) servers, so this process never loads a model locally; it just moves JSON and
+# base64 audio around, which is why this list is short.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0
+httpx>=0.27
+python-dotenv>=1.0
+pydantic>=2.5
+
+# Optional, only needed for USE_MOCK_CLOUD=false in app/tools/infra.py:
+# boto3>=1.34
+
+# Optional, only needed for scripts/mic_test_client.py (manual local testing):
+# sounddevice>=0.4
+# numpy>=1.26
+# requests>=2.31
