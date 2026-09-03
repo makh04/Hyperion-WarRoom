@@ -4,9 +4,10 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .routers import dashboard_ws, incidents
+from .routers import dashboard_ws, incidents, google_meet
 from .voice import bridge
 from .voice.provisioning import ensure_agent_id
 
@@ -30,9 +31,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
 app.include_router(incidents.router)
 app.include_router(dashboard_ws.router)
 app.include_router(bridge.router)
+app.include_router(google_meet.router)
 
 
 @app.on_event("startup")

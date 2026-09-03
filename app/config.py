@@ -40,12 +40,23 @@ class Settings:
     # --- Cloud infra tools ---
     use_mock_cloud: bool = _bool_env("USE_MOCK_CLOUD", True)
 
+    # --- Google OAuth ---
+    google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/google/callback")
+    google_scopes: tuple = tuple(
+        s.strip() for s in os.getenv("GOOGLE_SCOPES", "https://www.googleapis.com/auth/calendar.app.created").split(",") if s.strip()
+    )
+
     # --- Server ---
     cors_origins: tuple = tuple(
         o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()
     )
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
+
+    # --- Session Management ---
+    secret_key: str = os.getenv("SECRET_KEY", "your-super-secret-key")
 
     @property
     def use_stored_agent(self) -> bool:

@@ -8,10 +8,15 @@ httpx>=0.27
 python-dotenv>=1.0
 pydantic>=2.5
 
+# Google OAuth & Calendar API
+google-auth-oauthlib>=1.2
+google-api-python-client>=2.100
+google-auth-httplib2>=0.2
+
 # Optional, only needed for USE_MOCK_CLOUD=false in app/tools/infra.py:
-# boto3>=1.34
+ boto3>=1.34
 
 # Optional, only needed for scripts/mic_test_client.py (manual local testing):
-# sounddevice>=0.4
-# numpy>=1.26
-# requests>=2.31
+ sounddevice>=0.4
+ numpy>=1.26
+ requests>=2.31
