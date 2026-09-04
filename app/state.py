@@ -59,6 +59,10 @@ class Incident:
     pending_actions: dict = field(default_factory=dict)  # action_id -> PendingAction
     recent_speaker: Optional[SpeakerWindow] = None
     agent_session: Any = None  # set by voice.bridge; typed loosely to avoid a circular import
+    meet_space_name: Optional[str] = None
+    meeting_baas_bot_id: Optional[str] = None
+    meeting_baas_status: Optional[str] = None
+    transcription_session: Any = None
     dashboard_sockets: set = field(default_factory=set)
 
 

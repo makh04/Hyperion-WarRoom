@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -10,8 +9,10 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 from requests_oauthlib import OAuth2Session
+from uuid import uuid4
 
 from ..config import settings
 
@@ -38,6 +39,68 @@ def _load_credentials(user_id: str = "default") -> Optional[Credentials]:
     )
 
 
+def create_open_meet_space(
+    user_id: str = "default", summary: str = "Hyperion WarRoom Incident"
+) -> dict:
+    credentials = _load_credentials(user_id)
+    if not credentials:
+        raise PermissionError("Not authenticated. Visit /api/google/login first.")
+
+    try:
+        service = build("calendar", "v3", credentials=credentials)
+        calendar = service.calendars().insert(
+            body={"summary": "Hyperion WarRoom"}
+        ).execute()
+        calendar_id = calendar["id"]
+
+        start = datetime.now(timezone.utc).replace(microsecond=0)
+        
+        # Configuring conferenceData with parameters/access type to be open if supported
+        event = service.events().insert(
+            calendarId=calendar_id,
+            conferenceDataVersion=1,
+            sendUpdates="none",
+            body={
+                "summary": summary,
+                "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
+                "end": {
+                    "dateTime": (start + timedelta(hours=1)).isoformat(),
+                    "timeZone": "UTC",
+                },
+                "conferenceData": {
+                    "createRequest": {
+                        "requestId": f"war-room-{uuid4().hex}",
+                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                        "parameters": {
+                            "conferenceAccess": "OPEN"
+                        }
+                    }
+                },
+            },
+        ).execute()
+    except HttpError as exc:
+        detail = getattr(exc, "_get_reason", lambda: str(exc))()
+        raise RuntimeError(f"Google Calendar meeting creation failed: {detail}") from exc
+
+    meeting_uri = next(
+        (
+            entry.get("uri")
+            for entry in event.get("conferenceData", {}).get("entryPoints", [])
+            if entry.get("entryPointType") == "video"
+        ),
+        None,
+    )
+    if not meeting_uri:
+        raise RuntimeError("Google Calendar did not return a Meet link")
+
+    return {
+        "name": event.get("id"),
+        "meetingUri": meeting_uri,
+        "config": {"accessType": "OPEN"},
+        "calendarId": calendar_id,
+    }
+
+
 class CreateMeetRequest(BaseModel):
     summary: str
     description: Optional[str] = None
@@ -45,6 +108,7 @@ class CreateMeetRequest(BaseModel):
     end_time: str
     attendees: list[str]
     timezone: str = "UTC"
+    access_type: str = "OPEN"  # Added option to control access type
 
 
 @router.get("/login")
@@ -68,11 +132,9 @@ async def google_login(request: Request):
 
     authorization_url, state = flow.authorization_url(
         access_type="offline",
-
         prompt="consent",
     )
     
-    # Keep concurrent login attempts separate so a second tab cannot overwrite the first state.
     oauth_flows = dict(request.session.get("google_oauth_flows", {}))
     oauth_flows[state] = {
         "scopes": scopes,
@@ -102,7 +164,6 @@ async def google_callback(request: Request):
         }
     }
     
-    # Re-initialize the OAuth2Session with the original state token
     oauth2_session = OAuth2Session(
         client_id=client_config["web"]["client_id"],
         scope=flow_state["scopes"],
@@ -110,7 +171,6 @@ async def google_callback(request: Request):
         state=returned_state,
     )
     
-    # Construct Flow directly to inject the saved code_verifier without regenerating a new one
     flow = Flow(
         oauth2session=oauth2_session,
         client_type="web",
@@ -124,7 +184,6 @@ async def google_callback(request: Request):
     credentials = flow.credentials
     _save_credentials(credentials)
 
-    # Clear this flow while leaving any other concurrent login attempt intact.
     remaining_flows = dict(oauth_flows)
     del remaining_flows[returned_state]
     if remaining_flows:
@@ -143,7 +202,6 @@ async def create_meet(body: CreateMeetRequest, user_id: str = Query("default")):
 
     service = build("calendar", "v3", credentials=credentials)
 
-    # calendar.app.created scope requires creating your own calendar
     new_calendar = service.calendars().insert(body={"summary": "Hyperion WarRoom"}).execute()
     calendar_id = new_calendar["id"]
 
@@ -157,6 +215,9 @@ async def create_meet(body: CreateMeetRequest, user_id: str = Query("default")):
             "createRequest": {
                 "requestId": f"meet-{body.start_time}",
                 "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                "parameters": {
+                    "conferenceAccess": body.access_type  # Allows setting access dynamically (e.g., "OPEN")
+                }
             }
         },
     }
@@ -185,4 +246,5 @@ async def create_meet(body: CreateMeetRequest, user_id: str = Query("default")):
         "html_link": created_event.get("htmlLink"),
         "calendar_id": calendar_id,
         "status": created_event.get("status"),
+        "access_type": body.access_type,
     }

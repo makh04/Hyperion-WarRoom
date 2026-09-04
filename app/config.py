@@ -19,10 +19,17 @@ def _bool_env(name: str, default: bool) -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _google_scopes() -> tuple[str, ...]:
+    calendar_scope = "https://www.googleapis.com/auth/calendar.app.created"
+    return (calendar_scope,)
+
+
 @dataclass(frozen=True)
 class Settings:
     # --- AssemblyAI ---
     assemblyai_api_key: str = os.getenv("ASSEMBLYAI_API_KEY", "")
+    assemblyai_streaming_model: str = os.getenv("ASSEMBLYAI_STREAMING_MODEL", "universal-3-5-pro")
+    streaming_sample_rate: int = int(os.getenv("STREAMING_SAMPLE_RATE", "24000"))
     # Optional: point at an agent you already created yourself (skips auto-provisioning).
     assemblyai_agent_id: str = os.getenv("ASSEMBLYAI_AGENT_ID", "")
     agent_voice: str = os.getenv("AGENT_VOICE", "anna")
@@ -44,9 +51,12 @@ class Settings:
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/google/callback")
-    google_scopes: tuple = tuple(
-        s.strip() for s in os.getenv("GOOGLE_SCOPES", "https://www.googleapis.com/auth/calendar.app.created").split(",") if s.strip()
-    )
+    google_scopes: tuple = _google_scopes()
+
+    # --- MeetingBaaS ---
+    meeting_baas_api_key: str = os.getenv("MEETING_BAAS_KEY", "")
+    meeting_baas_api_base_url: str = os.getenv("MEETING_BAAS_API_BASE_URL", "https://api.meetingbaas.com/v2")
+    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
 
     # --- Server ---
     cors_origins: tuple = tuple(

@@ -1,10 +1,56 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 
 from .. import state
 
 router = APIRouter()
+
+
+@router.get("/live/{incident_id}", response_class=HTMLResponse)
+async def live_transcript_page(incident_id: str):
+        """Small local viewer for the live transcript WebSocket."""
+        return HTMLResponse(f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Live transcript {incident_id}</title>
+<style>
+body {{ background:#111827; color:#e5e7eb; font:16px system-ui,sans-serif; margin:0; }}
+main {{ max-width:900px; margin:0 auto; padding:24px; }}
+h1 {{ font-size:22px; }}
+#status {{ color:#93c5fd; margin-bottom:18px; }}
+#transcript {{ white-space:pre-wrap; line-height:1.6; background:#030712; padding:18px; min-height:360px; border-radius:8px; }}
+.live {{ color:#9ca3af; }}
+.final {{ color:#f9fafb; }}
+.error {{ color:#fca5a5; }}
+</style></head>
+<body><main><h1>Live transcript: {incident_id}</h1>
+<div id="status">Connecting to backend...</div><div id="transcript"></div></main>
+<script>
+const status = document.getElementById('status');
+const output = document.getElementById('transcript');
+const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const socket = new WebSocket(protocol + '//' + location.host + '/ws/dashboard/{incident_id}');
+socket.onopen = () => status.textContent = 'Connected. Waiting for MeetingBaaS audio...';
+socket.onclose = () => status.textContent = 'Disconnected from backend.';
+socket.onerror = () => status.textContent = 'WebSocket connection failed.';
+socket.onmessage = (message) => {{
+    const event = JSON.parse(message.data);
+    if (event.type === 'timeline.snapshot') {{
+        output.textContent = event.entries.map(entry => entry.text).join('\\n');
+    }} else if (event.type === 'transcript.delta') {{
+        const line = document.createElement('div');
+        line.className = event.final ? 'final' : 'live';
+        line.textContent = (event.final ? 'FINAL: ' : 'LIVE: ') + event.text;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
+        status.textContent = event.final ? 'Receiving transcript.' : 'Receiving live audio transcription...';
+    }} else if (event.type === 'agent.error') {{
+        const line = document.createElement('div');
+        line.className = 'error'; line.textContent = 'ERROR: ' + event.message;
+        output.appendChild(line);
+    }}
+}};
+</script></body></html>""")
 
 
 @router.websocket("/ws/dashboard/{incident_id}")

@@ -52,6 +52,9 @@ async def get_incident(incident_id: str):
         "status": incident.status,
         "created_at": incident.created_at,
         "meet_url": incident.meet_url,
+        "meet_space_name": incident.meet_space_name,
+        "meeting_baas_bot_id": incident.meeting_baas_bot_id,
+        "meeting_baas_status": incident.meeting_baas_status,
         "session_ready": bool(incident.agent_session and incident.agent_session.ready),
     }
 

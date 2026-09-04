@@ -112,6 +112,26 @@ python scripts/mic_test_client.py
 | `POST` | `/incidents/{id}/resolve` | Mark an incident resolved |
 | `GET` | `/health` | Liveness + which reasoning LLM is active |
 
+### Live MeetingBaaS transcription
+
+The live transcription workflow uses two requests:
+
+1. `POST /api/meeting-sessions` with `{"name": "Checkout incident"}` creates a Google Meet
+  space with `accessType: OPEN` and an incident. The Google OAuth login must be repeated after
+  adding the Meet Spaces scopes.
+2. `POST /api/meeting-sessions/{incident_id}/bot` with an optional bot name starts one
+  MeetingBaaS v2 audio-only bot. The bot streams 24 kHz mono PCM to
+  `/ws/meeting-baas/{incident_id}`.
+
+Set `MEETING_BAAS_KEY` and `PUBLIC_BASE_URL` in `.env`. `PUBLIC_BASE_URL` must resolve publicly;
+use an HTTPS tunnel during local testing, such as an ngrok or Cloudflare Tunnel URL. The backend
+converts it to WSS for MeetingBaaS. The stream forwards audio to AssemblyAI Streaming STT and
+publishes interim transcript updates to the dashboard while persisting only final turns.
+
+This path uses one AssemblyAI streaming session per incident, avoids MeetingBaaS duplicate bots,
+and sends the AssemblyAI termination message when the stream closes to keep usage low. It is
+separate from the existing Voice Agent WebSocket and does not produce spoken agent replies.
+
 ## WebSocket contracts
 
 ### `/ws/bot/{incident_id}` — for the Meet browser bot
