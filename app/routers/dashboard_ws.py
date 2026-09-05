@@ -21,6 +21,7 @@ h1 {{ font-size:22px; }}
 #transcript {{ white-space:pre-wrap; line-height:1.6; background:#030712; padding:18px; min-height:360px; border-radius:8px; }}
 .live {{ color:#9ca3af; }}
 .final {{ color:#f9fafb; }}
+.speaker {{ font-weight:600; color:#93c5fd; }}
 .error {{ color:#fca5a5; }}
 </style></head>
 <body><main><h1>Live transcript: {incident_id}</h1>
@@ -36,14 +37,26 @@ socket.onerror = () => status.textContent = 'WebSocket connection failed.';
 socket.onmessage = (message) => {{
     const event = JSON.parse(message.data);
     if (event.type === 'timeline.snapshot') {{
-        output.textContent = event.entries.map(entry => entry.text).join('\\n');
+        output.textContent = event.entries.map(entry =>
+            (entry.kind === 'transcript.user' ? 'FINAL | ' : '')
+            + (entry.kind === 'meeting.chat' ? 'CHAT | ' : '')
+            + (entry.speaker || 'Unknown speaker') + ': ' + entry.text
+        ).join('\\n');
     }} else if (event.type === 'transcript.delta') {{
         const line = document.createElement('div');
         line.className = event.final ? 'final' : 'live';
-        line.textContent = (event.final ? 'FINAL: ' : 'LIVE: ') + event.text;
+        line.textContent = (event.final ? 'FINAL | ' : 'LIVE | ')
+            + (event.speaker || 'Unknown speaker') + ': ' + event.text;
         output.appendChild(line);
         output.scrollTop = output.scrollHeight;
         status.textContent = event.final ? 'Receiving transcript.' : 'Receiving live audio transcription...';
+    }} else if (event.type === 'chat.message') {{
+        const line = document.createElement('div');
+        line.className = 'final';
+        line.textContent = 'CHAT | ' + (event.sender || 'Unknown sender') + ': ' + event.text;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
+        status.textContent = 'Receiving meeting chat.';
     }} else if (event.type === 'agent.error') {{
         const line = document.createElement('div');
         line.className = 'error'; line.textContent = 'ERROR: ' + event.message;

@@ -15,12 +15,43 @@ router = APIRouter()
 
 
 def _speaker_name(message: Any) -> str | None:
-    if not isinstance(message, list):
+    if isinstance(message, dict):
+        if message.get("isSpeaking") and message.get("name"):
+            return str(message["name"])
+        for key in ("speaker_name", "speakerName", "participant_name", "participantName", "speaker_label"):
+            if message.get(key):
+                return str(message[key])
+        speaker = message.get("speaker")
+        if isinstance(speaker, str) and speaker:
+            return speaker
         return None
-    for speaker in message:
-        if isinstance(speaker, dict) and speaker.get("isSpeaking") and speaker.get("name"):
-            return speaker["name"]
+    if isinstance(message, list):
+        for speaker in message:
+            if isinstance(speaker, dict) and speaker.get("isSpeaking") and speaker.get("name"):
+                return str(speaker["name"])
     return None
+
+
+def _assemblyai_named_speaker(event: dict) -> str | None:
+    for key in ("speaker_name", "speakerName", "participant_name", "participantName"):
+        value = event.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def _resolve_speaker(incident: state.Incident, event: dict) -> tuple[str | None, str | None]:
+    """Prefer actual participant names, then fall back to AssemblyAI labels."""
+    named_speaker = _assemblyai_named_speaker(event)
+    if named_speaker:
+        return named_speaker, "assemblyai"
+    meeting_baas_speaker = state.attribute_speaker(incident)
+    if meeting_baas_speaker:
+        return meeting_baas_speaker, "meeting_baas"
+    event_speaker = _speaker_name(event)
+    if event_speaker:
+        return event_speaker, "assemblyai"
+    return None, None
 
 
 async def _handle_transcript(incident: state.Incident, event: dict) -> None:
@@ -45,7 +76,14 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
         f"[{incident.id}] {'FINAL' if is_final else 'LIVE'}: {text}",
         flush=True,
     )
-    payload = {"type": "transcript.delta", "text": text, "final": is_final}
+    speaker, speaker_source = _resolve_speaker(incident, event)
+    payload = {
+        "type": "transcript.delta",
+        "text": text,
+        "final": is_final,
+        "speaker": speaker,
+        "speaker_source": speaker_source,
+    }
     await state.broadcast(incident, payload)
     if not is_final:
         return
@@ -54,9 +92,10 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
         incident,
         "transcript.user",
         text,
-        speaker=state.attribute_speaker(incident),
+        speaker=speaker,
         meta={
             "source": "meeting_baas",
+            "speaker_source": speaker_source,
             "utterance_start": event.get("utteranceStart", event.get("utterance_start")),
             "utterance_end": event.get("utteranceEnd", event.get("utterance_end")),
             "confidence": event.get("confidence"),

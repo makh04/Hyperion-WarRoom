@@ -4,4 +4,4 @@ __pycache__/
 .assemblyai_agent_cache.json
 .venv/
 venv/
-"temp_auth/" 
+temp_auth/

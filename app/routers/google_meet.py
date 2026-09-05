@@ -40,7 +40,9 @@ def _load_credentials(user_id: str = "default") -> Optional[Credentials]:
 
 
 def create_open_meet_space(
-    user_id: str = "default", summary: str = "Hyperion WarRoom Incident"
+    user_id: str = "default",
+    summary: str = "Hyperion WarRoom Incident",
+    attendees: list[str] | None = None,
 ) -> dict:
     credentials = _load_credentials(user_id)
     if not credentials:
@@ -59,7 +61,7 @@ def create_open_meet_space(
         event = service.events().insert(
             calendarId=calendar_id,
             conferenceDataVersion=1,
-            sendUpdates="none",
+            sendUpdates="all",
             body={
                 "summary": summary,
                 "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
@@ -67,6 +69,7 @@ def create_open_meet_space(
                     "dateTime": (start + timedelta(hours=1)).isoformat(),
                     "timeZone": "UTC",
                 },
+                "attendees": [{"email": email} for email in (attendees or [])],
                 "conferenceData": {
                     "createRequest": {
                         "requestId": f"war-room-{uuid4().hex}",

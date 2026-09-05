@@ -69,6 +69,7 @@ async def main() -> None:
         assert transcriber.audio == [b"\\x01\\x02\\x03\\x04"]
         assert transcriber.closed is True
         assert incident.recent_speaker.name == "Alex"
+        assert meeting_stream._speaker_name({"speaker_name": "AssemblyAI person"}) == "AssemblyAI person"
 
         await meeting_stream._handle_transcript(incident, {
             "type": "Turn",
@@ -85,7 +86,17 @@ async def main() -> None:
         })
         assert len(incident.timeline) == 1
         assert incident.timeline[0].text == "final words"
+        assert incident.timeline[0].speaker == "Alex"
+        assert incident.timeline[0].meta["speaker_source"] == "meeting_baas"
         assert incident.timeline[0].meta["utterance_start"] == 1.0
+        await meeting_stream._handle_transcript(incident, {
+            "type": "Turn",
+            "transcript": "named AssemblyAI turn",
+            "speaker_name": "AssemblyAI person",
+            "end_of_turn": True,
+        })
+        assert incident.timeline[-1].speaker == "AssemblyAI person"
+        assert incident.timeline[-1].meta["speaker_source"] == "assemblyai"
         print("MEETING STREAM HANDOFF PASSED")
     finally:
         meeting_stream.StreamingTranscriber = original_transcriber

@@ -7,15 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .routers import dashboard_ws, incidents, google_meet, meeting_sessions, meeting_stream
+from .routers import dashboard_ws, incidents, google_meet, meeting_sessions, meeting_stream, meeting_webhooks
 from .voice import bridge
 from .voice.provisioning import ensure_agent_id
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-logger = logging.getLogger("sentinelvoice.main")
+logger = logging.getLogger("hyperion_warroom.main")
 
 app = FastAPI(
-    title="SentinelVoice Backend",
+    title="Hyperion WarRoom",
     description=(
         "Real-time SRE incident co-pilot backend: bridges Google Meet audio to AssemblyAI's "
         "Voice Agent API (reasoning via Groq) and exposes incident/timeline/confirmation REST APIs."
@@ -39,6 +39,7 @@ app.include_router(bridge.router)
 app.include_router(google_meet.router)
 app.include_router(meeting_sessions.router)
 app.include_router(meeting_stream.router)
+app.include_router(meeting_webhooks.router)
 
 
 @app.on_event("startup")

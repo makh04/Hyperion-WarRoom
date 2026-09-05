@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import state
 from ..config import settings
@@ -14,10 +14,11 @@ router = APIRouter(prefix="/api/meeting-sessions", tags=["meeting-sessions"])
 
 class CreateMeetingSessionRequest(BaseModel):
     name: str
+    attendees: list[str] = Field(default_factory=list)
 
 
 class StartBotRequest(BaseModel):
-    bot_name: str = "SentinelVoice"
+    bot_name: str = "Hypernion_Agent"
 
 
 @router.post("")
@@ -26,7 +27,9 @@ async def create_meeting_session(
     user_id: str = Query("default"),
 ):
     try:
-        space = await run_in_threadpool(create_open_meet_space, user_id, body.name)
+        space = await run_in_threadpool(
+            create_open_meet_space, user_id, body.name, body.attendees
+        )
     except PermissionError as exc:
         raise HTTPException(401, str(exc)) from exc
     except RuntimeError as exc:
