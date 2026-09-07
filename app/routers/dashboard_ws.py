@@ -6,6 +6,14 @@ from fastapi.responses import HTMLResponse
 from .. import state
 
 router = APIRouter()
+draft_summaries: dict[str, dict] = {}
+
+
+@router.post("/live/{incident_id}")
+async def receive_draft_summary(incident_id: str, payload: dict):
+    """Accept the Step 3 draft state for the local live incident endpoint."""
+    draft_summaries[incident_id] = payload
+    return {"received": True, "incident_id": incident_id}
 
 
 @router.get("/live/{incident_id}", response_class=HTMLResponse)

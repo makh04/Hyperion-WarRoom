@@ -111,6 +111,8 @@ python scripts/mic_test_client.py
 | `POST` | `/incidents/{id}/pending-actions/{action_id}/approve` | Dashboard-driven approval — runs the action immediately, no spoken phrase needed |
 | `POST` | `/incidents/{id}/resolve` | Mark an incident resolved |
 | `GET` | `/health` | Liveness + which reasoning LLM is active |
+| `POST` | `/transcripts` | Add `{"speaker": str, "message": str}` to the three-minute buffer |
+| `GET` | `/transcripts` | Inspect the current three-minute transcript window |
 
 ### Live MeetingBaaS transcription
 

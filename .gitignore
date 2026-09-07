@@ -1,7 +1,18 @@
-__pycache__/
-*.pyc
-.env
-.assemblyai_agent_cache.json
+# Python virtual environment
 .venv/
 venv/
+env/
+ENV/
+
+# Python cache / compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment / secret files
+.env
+.env.*
+!.env.example
+
+.assemblyai_agent_cache.json
 temp_auth/
