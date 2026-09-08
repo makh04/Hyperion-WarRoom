@@ -16,15 +16,11 @@ from app.integrations import step4_report  # noqa: E402
 from app.routers import meeting_webhooks  # noqa: E402
 
 
-REPORT = {
-    "timeline": ["Database became unavailable"],
-    "problems": ["checkout-db outage"],
-    "actions": ["Restored database capacity"],
-    "decisions": ["Rollback approved"],
-    "assignments": ["Alex owns follow-up"],
-    "blockers": [],
-    "outcome": ["Service recovered"],
-}
+REPORT = (
+    "The checkout database became unavailable, causing an outage. "
+    "Alex owned follow-up while the team approved a rollback. "
+    "Service recovered with no remaining blockers."
+)
 
 
 async def main() -> None:
@@ -40,7 +36,21 @@ async def main() -> None:
     original_finalizer = meeting_webhooks.finalize_incident
     draft_path = Path("temp") / "step4_test_draft.json"
     report_directory = Path("temp") / "step4_test_reports"
-    draft_path.write_text(json.dumps({"incident_state": {"severity": "high"}}), encoding="utf-8")
+    draft_path.write_text(json.dumps({
+        "meeting_id": incident.id,
+        "incident_state": {"severity": "high"},
+        "segments": [{
+            "segment_id": 1,
+            "start_time": 1.0,
+            "end_time": 181.0,
+            "conversation": [{"speaker": "Alex", "message": "Database became unavailable"}],
+        }, {
+            "segment_id": 2,
+            "start_time": 181.0,
+            "end_time": 361.0,
+            "conversation": [{"speaker": "Sam", "message": "Rollback approved"}],
+        }],
+    }), encoding="utf-8")
     step4_report.DRAFT_SUMMARY_PATH = draft_path
     step4_report.FINAL_REPORT_DIRECTORY = report_directory
     object.__setattr__(settings, "final_report_api_key", "test-key")
@@ -52,7 +62,7 @@ async def main() -> None:
         requests.append(request)
         return httpx.Response(
             200,
-            json={"choices": [{"message": {"content": json.dumps(REPORT)}}]},
+            json={"choices": [{"message": {"content": REPORT}}]},
         )
 
     try:
@@ -71,8 +81,12 @@ async def main() -> None:
         assert source["full_local_timeline"][0]["text"] == "Database became unavailable"
         assert len(requests) == 1
         assert json.loads(requests[0].content)["model"] == "configured-120b"
+        assert '"segment_id": 2' in json.loads(requests[0].content)["messages"][1]["content"]
         saved = json.loads(Path(result["saved_path"]).read_text(encoding="utf-8"))
         assert saved["report"] == REPORT
+        assert [segment["segment_id"] for segment in saved["source"]["latest_step3_json_state"]["segments"]] == [1, 2]
+        assert isinstance(saved["report"], str)
+        assert Path(result["summary_path"]).read_text(encoding="utf-8").strip() == REPORT
 
         async def fake_finalize(*args, **kwargs):
             return {"saved_path": "temp/step4_test_reports/inc.json", "report": REPORT, "model": "configured-120b"}

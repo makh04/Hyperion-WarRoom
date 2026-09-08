@@ -9,6 +9,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from .. import state
 from ..config import settings
 from ..voice.streaming_transcriber import StreamingTranscriber
+from .transcripts import process_completed_window
+from ..transcript_buffer import buffer
 
 logger = logging.getLogger("sentinelvoice.meeting_stream")
 router = APIRouter()
@@ -102,6 +104,9 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
         },
     )
     await state.broadcast(incident, {"type": "timeline.entry", "entry": state.entry_to_dict(entry)})
+    buffered = await buffer.add(speaker or "unknown", text)
+    if buffered["completed_window"] is not None:
+        await process_completed_window(buffered["completed_window"], incident.id)
 
 
 @router.websocket("/ws/meeting-baas/{incident_id}")

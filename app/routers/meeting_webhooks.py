@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from .. import state
 from ..integrations.step4_report import FinalReportError, finalize_incident
 from ..transcript_buffer import buffer
+from .transcripts import process_completed_window
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -53,6 +54,7 @@ async def meeting_baas_webhook(event: dict[str, Any]):
             result = await finalize_incident(incident, event, buffer)
         except FinalReportError as exc:
             raise HTTPException(502, str(exc)) from exc
+        await buffer.finish()
         incident.meeting_baas_status = "call_ended"
         incident.status = "resolved"
         await state.broadcast(incident, {"type": "incident.final_report", **result})
@@ -86,4 +88,7 @@ async def meeting_baas_webhook(event: dict[str, Any]):
         "message_id": entry.meta["message_id"],
         "sent_at": entry.meta["sent_at"],
     })
+    buffered = await buffer.add(sender or "unknown", text)
+    if buffered["completed_window"] is not None:
+        await process_completed_window(buffered["completed_window"], incident.id)
     return {"received": True, "handled": True, "incident_id": incident.id}

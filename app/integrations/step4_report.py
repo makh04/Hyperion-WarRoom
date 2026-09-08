@@ -64,28 +64,19 @@ async def collect_final_report_input(
 
 def _report_prompt(source: dict[str, Any]) -> str:
     return (
-        "Create a final SRE incident report from the JSON source below. Return only a JSON object "
-        "with exactly these keys: timeline, problems, actions, decisions, assignments, blockers, "
-        "outcome. Each value must be an array of concise objects or strings; do not invent facts, "
-        "and use an empty array when evidence is missing. Keep it focused on incident facts.\n\n"
+        "Create a normal human-readable SRE incident report from the JSON source below. "
+        "Return plain text only, not JSON, markdown code fences, or a JSON object. Explain, "
+        "where available: what happened, the main issues and topics, who worked on what, "
+        "important decisions, suggested next steps, blockers, and the outcome or status. "
+        "Do not invent facts; say when evidence is missing.\n\n"
         f"SOURCE JSON:\n{json.dumps(source, indent=2, sort_keys=True)}"
     )
 
 
-def _parse_report(content: Any) -> dict[str, Any]:
-    if isinstance(content, dict):
-        report = content
-    elif isinstance(content, str):
-        try:
-            report = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise FinalReportError("final report model returned non-JSON content") from exc
-    else:
-        raise FinalReportError("final report model returned an invalid content type")
-    keys = ("timeline", "problems", "actions", "decisions", "assignments", "blockers", "outcome")
-    if not isinstance(report, dict) or any(key not in report for key in keys):
-        raise FinalReportError("final report model returned an incomplete report")
-    return {key: report[key] for key in keys}
+def _parse_report(content: Any) -> str:
+    if not isinstance(content, str) or not content.strip():
+        raise FinalReportError("final report model returned non-text content")
+    return content.strip()
 
 
 async def synthesize_final_report(
@@ -105,7 +96,6 @@ async def synthesize_final_report(
             json={
                 "model": settings.final_report_model,
                 "temperature": 0,
-                "response_format": {"type": "json_object"},
                 "messages": [
                     {
                         "role": "system",
@@ -146,4 +136,11 @@ async def finalize_incident(
     path = FINAL_REPORT_DIRECTORY / f"{incident.id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"saved_path": str(path), "report": report, "model": settings.final_report_model}
+    summary_path = FINAL_REPORT_DIRECTORY / f"{incident.id}.txt"
+    summary_path.write_text(report + "\n", encoding="utf-8")
+    return {
+        "saved_path": str(path),
+        "summary_path": str(summary_path),
+        "report": report,
+        "model": settings.final_report_model,
+    }

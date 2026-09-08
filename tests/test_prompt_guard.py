@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -29,6 +30,7 @@ async def main() -> None:
     original_buffer = transcripts.buffer
     original_guard = transcripts.analyze_completed_window
     original_step3 = transcripts.save_and_post_draft_summary
+    original_draft_path = transcripts.load_current_state
     fake_guard = FakePromptGuard()
 
     async def fake_analysis(window):
@@ -54,6 +56,7 @@ async def main() -> None:
         return None
 
     transcripts.save_and_post_draft_summary = fake_step3
+    transcripts.load_current_state = lambda meeting_id=None: {}
     try:
         result = await transcripts.add_transcript_message(
             transcripts.TranscriptMessageRequest(speaker="Alex", message="Database is unavailable")
@@ -66,6 +69,7 @@ async def main() -> None:
         transcripts.buffer = original_buffer
         transcripts.analyze_completed_window = original_guard
         transcripts.save_and_post_draft_summary = original_step3
+        transcripts.load_current_state = original_draft_path
     print("PROMPT GUARD STEP 2 PASSED")
 
 
