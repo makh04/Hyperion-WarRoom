@@ -149,6 +149,19 @@ async def google_login(request: Request):
     return RedirectResponse(url=authorization_url)
 
 
+@router.get("/status")
+async def google_status(user_id: str = Query("default")):
+    try:
+        credentials = _load_credentials(user_id)
+    except (OSError, ValueError):
+        credentials = None
+    return {
+        "user_id": user_id,
+        "authenticated": credentials is not None,
+        "credentials_available": credentials is not None,
+    }
+
+
 @router.get("/callback")
 async def google_callback(request: Request):
     returned_state = request.query_params.get("state")

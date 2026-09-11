@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .routers import dashboard_ws, incidents, google_meet, meeting_sessions, meeting_stream, meeting_webhooks, transcripts
+from .routers import dashboard_ws, incidents, google_meet, meeting_sessions, meeting_stream, meeting_webhooks, summaries, transcripts
 from .voice import bridge
 from .voice.provisioning import ensure_agent_id
 
@@ -41,6 +41,7 @@ app.include_router(meeting_sessions.router)
 app.include_router(meeting_stream.router)
 app.include_router(meeting_webhooks.router)
 app.include_router(transcripts.router)
+app.include_router(summaries.router)
 
 
 @app.on_event("startup")

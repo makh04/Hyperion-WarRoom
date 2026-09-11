@@ -49,7 +49,7 @@ async def create_meeting_session(
 
 
 @router.post("/{incident_id}/bot")
-async def start_meeting_bot(incident_id: str, body: StartBotRequest):
+async def start_meeting_bot(incident_id: str, body: StartBotRequest | None = None):
     incident = state.store.get(incident_id)
     if incident is None:
         raise HTTPException(404, "incident not found")
@@ -69,7 +69,7 @@ async def start_meeting_bot(incident_id: str, body: StartBotRequest):
         bot = await MeetingBaaSClient().create_audio_bot(
             incident.meet_url,
             incident.id,
-            body.bot_name,
+            body.bot_name if body else StartBotRequest().bot_name,
         )
     except MeetingBaaSError as exc:
         raise HTTPException(502, str(exc)) from exc
