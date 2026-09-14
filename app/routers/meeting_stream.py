@@ -9,9 +9,22 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from .. import state
 from ..config import settings
 from ..voice.streaming_transcriber import StreamingTranscriber
+from ..incident_state import ReasoningModelError
+from .transcripts import process_completed_window
+from ..transcript_buffer import buffer
 
 logger = logging.getLogger("sentinelvoice.meeting_stream")
 router = APIRouter()
+
+
+async def _debug(incident: state.Incident, stage: str, message: str, **details: Any) -> None:
+    logger.info("[%s] %s: %s %s", incident.id, stage, message, details or "")
+    await state.broadcast(incident, {
+        "type": "recording.debug",
+        "stage": stage,
+        "message": message,
+        "details": details,
+    })
 
 
 def _speaker_name(message: Any) -> str | None:
@@ -88,6 +101,8 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
     if not is_final:
         return
 
+    await _debug(incident, "transcript_final", "Final transcript received; adding it to the 3-minute buffer.", speaker=speaker)
+
     entry = state.record_timeline(
         incident,
         "transcript.user",
@@ -102,6 +117,52 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
         },
     )
     await state.broadcast(incident, {"type": "timeline.entry", "entry": state.entry_to_dict(entry)})
+    buffered = await buffer.add(speaker or "unknown", text)
+    await _debug(
+        incident,
+        "buffer_recorded",
+        "Transcript stored in the active 3-minute buffer.",
+        message_count=len(buffered["window"]["messages"]),
+        elapsed_seconds=round(buffered["window"]["elapsed_seconds"], 1),
+        window_seconds=buffered["window"]["window_seconds"],
+    )
+    if buffered["completed_window"] is not None:
+        completed = buffered["completed_window"]
+        await _debug(
+            incident,
+            "buffer_complete",
+            "3-minute buffer complete; starting meeting summary analysis.",
+            message_count=len(completed["messages"]),
+        )
+        try:
+            result = await process_completed_window(completed, incident.id)
+        except ReasoningModelError as exc:
+            logger.exception("[%s] Summary JSON save failed", incident.id)
+            await _debug(
+                incident,
+                "reasoning_model_failed",
+                "The reasoning model failed; meeting summary JSON was not updated.",
+                category=exc.category,
+                error=str(exc),
+                **exc.details,
+            )
+        except Exception as exc:
+            logger.exception("[%s] Summary JSON save failed", incident.id)
+            await _debug(
+                incident,
+                "json_save_failed",
+                "Meeting summary JSON could not be saved.",
+                category="unexpected_error",
+                error=str(exc),
+            )
+        else:
+            await _debug(
+                incident,
+                "json_saved",
+                "Meeting summary JSON saved successfully.",
+                saved_path=result["step3"]["saved_path"],
+                segment_count=len(result["step3"]["history"]["segments"]),
+            )
 
 
 @router.websocket("/ws/meeting-baas/{incident_id}")
@@ -112,12 +173,14 @@ async def meeting_baas_stream(websocket: WebSocket, incident_id: str):
         return
 
     await websocket.accept()
+    await _debug(incident, "recording_connected", "MeetingBaaS recording connected; waiting for audio handshake.")
     transcriber = StreamingTranscriber(lambda event: _handle_transcript(incident, event))
     incident.transcription_session = transcriber
     handshake_seen = False
     try:
         await transcriber.connect()
         incident.meeting_baas_status = "in_call_recording"
+        await _debug(incident, "transcription_started", "Audio connected; live transcription is active.")
         print(f"[{incident_id}] MeetingBaaS audio connected; live AssemblyAI transcription started", flush=True)
         while True:
             message = await websocket.receive()

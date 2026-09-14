@@ -43,6 +43,15 @@ class Settings:
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
     groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    final_report_api_key: str = os.getenv("FINAL_REPORT_API_KEY", os.getenv("GROQ_API_KEY", ""))
+    final_report_base_url: str = os.getenv("FINAL_REPORT_BASE_URL", os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"))
+    buffer_summary_model: str = os.getenv("BUFFER_SUMMARY_MODEL", "qwen/qwen3.8-27b")
+    final_report_model: str = os.getenv("FINAL_REPORT_MODEL", "openai/gpt-oss-120b")
+
+    # --- Transcript security classification ---
+    prompt_guard_model: str = os.getenv(
+        "PROMPT_GUARD_MODEL", "meta-llama/Llama-Prompt-Guard-2-86M"
+    )
 
     # --- Cloud infra tools ---
     use_mock_cloud: bool = _bool_env("USE_MOCK_CLOUD", True)

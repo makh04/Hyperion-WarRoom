@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from .. import state
 from ..config import settings
 from ..integrations.meeting_baas import MeetingBaaSError, MeetingBaaSClient
+from ..transcript_buffer import buffer
 from .google_meet import create_open_meet_space
 
 router = APIRouter(prefix="/api/meeting-sessions", tags=["meeting-sessions"])
@@ -73,6 +74,7 @@ async def start_meeting_bot(incident_id: str, body: StartBotRequest):
     except MeetingBaaSError as exc:
         raise HTTPException(502, str(exc)) from exc
 
+    await buffer.reset()
     incident.meeting_baas_bot_id = bot.bot_id
     incident.meeting_baas_status = "queued"
     return {

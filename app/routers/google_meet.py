@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -11,6 +12,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from requests_oauthlib import OAuth2Session
 from uuid import uuid4
 
@@ -20,6 +22,10 @@ router = APIRouter(prefix="/api/google", tags=["google-meet"])
 
 TEMP_AUTH_DIR = Path("temp_auth")
 TEMP_AUTH_DIR.mkdir(exist_ok=True)
+_oauth_flows: dict[str, dict] = {}
+
+if settings.google_redirect_uri.startswith(("http://localhost", "http://127.0.0.1")):
+    os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 
 
 def _credentials_path(user_id: str = "default") -> Path:
@@ -145,18 +151,37 @@ async def google_login(request: Request):
         "code_verifier": flow.code_verifier,
     }
     request.session["google_oauth_flows"] = oauth_flows
+    _oauth_flows[state] = oauth_flows[state]
     
     return RedirectResponse(url=authorization_url)
+
+
+@router.get("/status")
+async def google_auth_status():
+    credentials = _load_credentials()
+    if credentials is None:
+        return {"logged_in": False}
+
+    if credentials.expired and credentials.refresh_token:
+        try:
+            credentials.refresh(GoogleAuthRequest())
+            _save_credentials(credentials)
+        except Exception:
+            return {"logged_in": False}
+
+    return {"logged_in": bool(credentials.valid)}
 
 
 @router.get("/callback")
 async def google_callback(request: Request):
     returned_state = request.query_params.get("state")
-    oauth_flows = request.session.get("google_oauth_flows", {})
-    if not returned_state or returned_state not in oauth_flows:
+    session_flows = request.session.get("google_oauth_flows", {})
+    flow_state = _oauth_flows.pop(returned_state, None) if returned_state else None
+    if flow_state is None and returned_state:
+        flow_state = session_flows.get(returned_state)
+    if flow_state is None:
         raise HTTPException(400, "OAuth flow state not found in session. Please restart the login process.")
 
-    flow_state = oauth_flows[returned_state]
     client_config = {
         "web": {
             "client_id": settings.google_client_id,
@@ -187,8 +212,8 @@ async def google_callback(request: Request):
     credentials = flow.credentials
     _save_credentials(credentials)
 
-    remaining_flows = dict(oauth_flows)
-    del remaining_flows[returned_state]
+    remaining_flows = dict(session_flows)
+    remaining_flows.pop(returned_state, None)
     if remaining_flows:
         request.session["google_oauth_flows"] = remaining_flows
     else:

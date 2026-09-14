@@ -64,9 +64,9 @@ zero extra latency, easiest way to sanity-check the pipeline before adding Groq.
 Run `python scripts/provision_agent.py` any time to provision/inspect the agent standalone
 and confirm your keys are wired correctly before starting the full server.
 
-**Model choice:** defaults to `llama-3.3-70b-versatile` — Groq's recommended pick for
-tool-calling reliability plus speed. Override with `GROQ_MODEL` if you'd rather use
-`llama-3.1-8b-instant` (faster, lighter) or another Groq-hosted model.
+**Model choice:** the three-minute transcript JSON summary defaults to `qwen/qwen3.8-27b`
+and can be overridden with `BUFFER_SUMMARY_MODEL`. The call-end plain-text incident summary
+defaults to `openai/gpt-oss-120b` and can be overridden with `FINAL_REPORT_MODEL`.
 
 ## Setup
 
@@ -111,6 +111,8 @@ python scripts/mic_test_client.py
 | `POST` | `/incidents/{id}/pending-actions/{action_id}/approve` | Dashboard-driven approval — runs the action immediately, no spoken phrase needed |
 | `POST` | `/incidents/{id}/resolve` | Mark an incident resolved |
 | `GET` | `/health` | Liveness + which reasoning LLM is active |
+| `POST` | `/transcripts` | Add `{"speaker": str, "message": str}` to the three-minute buffer |
+| `GET` | `/transcripts` | Inspect the current three-minute transcript window |
 
 ### Live MeetingBaaS transcription
 

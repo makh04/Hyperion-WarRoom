@@ -64,6 +64,7 @@ class Incident:
     meeting_baas_status: Optional[str] = None
     transcription_session: Any = None
     dashboard_sockets: set = field(default_factory=set)
+    draft_summary: Optional[dict] = None
 
 
 class IncidentStore:

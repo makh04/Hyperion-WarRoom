@@ -5,6 +5,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from .. import state
+from ..integrations.step4_report import FinalReportError, finalize_incident
+from ..transcript_buffer import buffer
+from .transcripts import process_completed_window
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -30,8 +33,39 @@ def _chat_message(event: dict[str, Any]) -> tuple[str, str, str | None] | None:
     return bot_id, text.strip(), str(sender) if sender else None
 
 
+def _call_ended_bot_id(event: dict[str, Any]) -> str | None:
+    event_name = str(event.get("event", "")).upper()
+    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    status = str(data.get("status", data.get("state", ""))).upper()
+    if event_name not in {"CALL_ENDED", "BOT.CALL_ENDED", "BOT_CALL_ENDED"} and status != "CALL_ENDED":
+        return None
+    bot_id = data.get("bot_id") or event.get("bot_id")
+    return bot_id if isinstance(bot_id, str) else None
+
+
 @router.post("/meeting-baas")
 async def meeting_baas_webhook(event: dict[str, Any]):
+    ended_bot_id = _call_ended_bot_id(event)
+    if ended_bot_id is not None:
+        incident = _find_incident(ended_bot_id)
+        if incident is None:
+            raise HTTPException(404, "meeting bot is not linked to an incident")
+        try:
+            result = await finalize_incident(incident, event, buffer)
+        except FinalReportError as exc:
+            print(f"[{incident.id}] Reasoning model failed: {exc}", flush=True)
+            await state.broadcast(incident, {
+                "type": "agent.error",
+                "code": "reasoning_model_failed",
+                "message": str(exc),
+            })
+            raise HTTPException(502, str(exc)) from exc
+        await buffer.finish()
+        incident.meeting_baas_status = "call_ended"
+        incident.status = "resolved"
+        await state.broadcast(incident, {"type": "incident.final_report", **result})
+        return {"received": True, "handled": True, "event": "CALL_ENDED", "incident_id": incident.id, **result}
+
     chat = _chat_message(event)
     if chat is None:
         return {"received": True, "handled": False}
@@ -60,4 +94,7 @@ async def meeting_baas_webhook(event: dict[str, Any]):
         "message_id": entry.meta["message_id"],
         "sent_at": entry.meta["sent_at"],
     })
+    buffered = await buffer.add(sender or "unknown", text)
+    if buffered["completed_window"] is not None:
+        await process_completed_window(buffered["completed_window"], incident.id)
     return {"received": True, "handled": True, "incident_id": incident.id}

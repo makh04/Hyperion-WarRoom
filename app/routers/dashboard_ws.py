@@ -4,8 +4,25 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from .. import state
+from ..integrations.step3_webhook import load_current_state
 
 router = APIRouter()
+draft_summaries: dict[str, dict] = {}
+
+
+@router.post("/live/{incident_id}")
+async def receive_draft_summary(incident_id: str, payload: dict):
+    """Accept the Step 3 draft state for the local live incident endpoint."""
+    draft_summaries[incident_id] = payload
+    incident = state.store.get(incident_id)
+    if incident is not None:
+        await state.broadcast(incident, {
+            "type": "recording.debug",
+            "stage": "json_received",
+            "message": "Dashboard received the saved meeting summary JSON.",
+            "details": {"saved_path": "temp/draft_summary.json"},
+        })
+    return {"received": True, "incident_id": incident_id}
 
 
 @router.get("/live/{incident_id}", response_class=HTMLResponse)
@@ -18,6 +35,7 @@ body {{ background:#111827; color:#e5e7eb; font:16px system-ui,sans-serif; margi
 main {{ max-width:900px; margin:0 auto; padding:24px; }}
 h1 {{ font-size:22px; }}
 #status {{ color:#93c5fd; margin-bottom:18px; }}
+#debug {{ background:#172033; border:1px solid #334155; padding:14px; min-height:120px; margin-bottom:18px; white-space:pre-wrap; font:13px ui-monospace,SFMono-Regular,monospace; color:#cbd5e1; }}
 #transcript {{ white-space:pre-wrap; line-height:1.6; background:#030712; padding:18px; min-height:360px; border-radius:8px; }}
 .live {{ color:#9ca3af; }}
 .final {{ color:#f9fafb; }}
@@ -25,9 +43,10 @@ h1 {{ font-size:22px; }}
 .error {{ color:#fca5a5; }}
 </style></head>
 <body><main><h1>Live transcript: {incident_id}</h1>
-<div id="status">Connecting to backend...</div><div id="transcript"></div></main>
+<div id="status">Connecting to backend...</div><div id="debug">Waiting for recording diagnostics...</div><div id="transcript"></div></main>
 <script>
 const status = document.getElementById('status');
+const debug = document.getElementById('debug');
 const output = document.getElementById('transcript');
 const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const socket = new WebSocket(protocol + '//' + location.host + '/ws/dashboard/{incident_id}');
@@ -42,6 +61,13 @@ socket.onmessage = (message) => {{
             + (entry.kind === 'meeting.chat' ? 'CHAT | ' : '')
             + (entry.speaker || 'Unknown speaker') + ': ' + entry.text
         ).join('\\n');
+        if (event.recording_status) {{
+            status.textContent = event.recording_status.message;
+            const draft = event.recording_status.draft_summary;
+            if (draft && draft.segments && draft.segments.length) {{
+                debug.textContent = 'Loaded ' + draft.segments.length + ' saved summary segment(s).\\n' + debug.textContent;
+            }}
+        }}
     }} else if (event.type === 'transcript.delta') {{
         const line = document.createElement('div');
         line.className = event.final ? 'final' : 'live';
@@ -61,6 +87,11 @@ socket.onmessage = (message) => {{
         const line = document.createElement('div');
         line.className = 'error'; line.textContent = 'ERROR: ' + event.message;
         output.appendChild(line);
+    }} else if (event.type === 'recording.debug') {{
+        const time = new Date().toLocaleTimeString();
+        const details = event.details ? ' ' + JSON.stringify(event.details) : '';
+        debug.textContent = '[' + time + '] ' + event.stage + ': ' + event.message + details + '\\n' + debug.textContent;
+        status.textContent = event.message;
     }}
 }};
 </script></body></html>""")
@@ -84,6 +115,10 @@ async def dashboard_socket(websocket: WebSocket, incident_id: str):
             "type": "timeline.snapshot",
             "entries": [state.entry_to_dict(e) for e in incident.timeline],
             "pending_actions": [state.action_to_dict(a) for a in incident.pending_actions.values()],
+            "recording_status": {
+                "message": incident.meeting_baas_status or "Waiting for recording connection.",
+                "draft_summary": incident.draft_summary or load_current_state(incident_id),
+            },
         })
         while True:
             await websocket.receive_text()

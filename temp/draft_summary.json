@@ -1,0 +1,98 @@
+{
+  "active_blockers": [],
+  "active_topics": [
+    "Server crash"
+  ],
+  "incident_state": {
+    "active_blockers": [],
+    "active_topics": [],
+    "key_decisions": [],
+    "last_updated": 1788968082.162894,
+    "participants": [
+      "unknown"
+    ],
+    "person_assignments": [],
+    "severity": "unknown",
+    "signals": [],
+    "status": "active",
+    "suggested_actions": [],
+    "summary": null,
+    "transcript_message_count": 5
+  },
+  "key_decisions": [],
+  "meeting_id": "inc_15eb3c22a4",
+  "person_assignments": [],
+  "security": {
+    "enabled": false,
+    "reason": "Prompt Guard disabled"
+  },
+  "segments": [
+    {
+      "analysis": {
+        "active_blockers": [],
+        "active_topics": [
+          "Server crash"
+        ],
+        "incident_state": {
+          "active_blockers": [],
+          "active_topics": [],
+          "key_decisions": [],
+          "last_updated": 1788968082.162894,
+          "participants": [
+            "unknown"
+          ],
+          "person_assignments": [],
+          "severity": "unknown",
+          "signals": [],
+          "status": "active",
+          "suggested_actions": [],
+          "summary": null,
+          "transcript_message_count": 5
+        },
+        "key_decisions": [],
+        "meeting_id": "inc_15eb3c22a4",
+        "person_assignments": [],
+        "security": {
+          "enabled": false,
+          "reason": "Prompt Guard disabled"
+        },
+        "suggested_actions": [],
+        "summary": "Server crash reported.",
+        "timestamp": 1788968083.262507
+      },
+      "conversation": [
+        {
+          "message": "Testing.",
+          "received_at": 1788968054.7667909,
+          "speaker": "unknown"
+        },
+        {
+          "message": "Park.",
+          "received_at": 1788968057.17324,
+          "speaker": "unknown"
+        },
+        {
+          "message": "Park.",
+          "received_at": 1788968060.6849995,
+          "speaker": "unknown"
+        },
+        {
+          "message": "Okay, you're working nice, I guess.",
+          "received_at": 1788968072.8343801,
+          "speaker": "unknown"
+        },
+        {
+          "message": "Our server crashed today.",
+          "received_at": 1788968082.162894,
+          "speaker": "unknown"
+        }
+      ],
+      "end_time": 1788968082.162894,
+      "segment_id": 1,
+      "start_time": 1788967893.7498329
+    }
+  ],
+  "suggested_actions": [],
+  "summary": "Server crash reported.",
+  "timestamp": 1788968083.262507
+}
