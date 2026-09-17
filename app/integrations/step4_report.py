@@ -83,6 +83,9 @@ def _parse_report(content: Any) -> str:
     return content.strip()
 
 
+from groq import AsyncGroq
+
+
 async def synthesize_final_report(
     source: dict[str, Any],
     client: httpx.AsyncClient | None = None,
@@ -92,37 +95,34 @@ async def synthesize_final_report(
         raise FinalReportError(
             "final report provider is not configured; set FINAL_REPORT_API_KEY or GROQ_API_KEY"
         )
-    owns_client = client is None
-    http_client = client or httpx.AsyncClient(timeout=60)
+    raw_base_url = (settings.final_report_base_url or "").rstrip("/")
+    if raw_base_url.endswith("/chat/completions"):
+        raw_base_url = raw_base_url[:-len("/chat/completions")].rstrip("/")
+    if raw_base_url.endswith("/openai/v1"):
+        raw_base_url = raw_base_url[:-len("/openai/v1")].rstrip("/")
+
+    groq_client = AsyncGroq(
+        api_key=settings.final_report_api_key,
+        base_url=raw_base_url if raw_base_url else None,
+    )
     try:
-        response = await http_client.post(
-            f"{settings.final_report_base_url.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.final_report_api_key}"},
-            json={
-                "model": settings.final_report_model,
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a meticulous incident commander writing factual post-incident reports.",
-                    },
-                    {"role": "user", "content": _report_prompt(source)},
-                ],
-            },
+        response = await groq_client.chat.completions.create(
+            model=settings.final_report_model,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a meticulous incident commander writing factual post-incident reports.",
+                },
+                {"role": "user", "content": _report_prompt(source)},
+            ],
         )
-        response.raise_for_status()
-        body = response.json()
-        content = body["choices"][0]["message"]["content"]
+        content = response.choices[0].message.content
         return _parse_report(content)
-    except httpx.HTTPError as exc:
+    except Exception as exc:
         logger.exception("Reasoning model failed during provider request")
         raise FinalReportError(f"final report provider request failed: {exc}") from exc
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        logger.exception("Reasoning model failed with an invalid response")
-        raise FinalReportError(f"final report provider returned an invalid response: {exc}") from exc
-    finally:
-        if owns_client:
-            await http_client.aclose()
+
 
 
 async def finalize_incident(

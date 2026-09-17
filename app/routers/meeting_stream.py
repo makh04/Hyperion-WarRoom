@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -12,9 +13,38 @@ from ..voice.streaming_transcriber import StreamingTranscriber
 from ..incident_state import ReasoningModelError
 from .transcripts import process_completed_window
 from ..transcript_buffer import buffer
+from ..agent_dispatch import detect_wake_word, dispatch_agent_query
+from ..integrations.meeting_baas import MeetingBaaSClient
+from ..voice.tts import speak_in_meeting
 
 logger = logging.getLogger("sentinelvoice.meeting_stream")
 router = APIRouter()
+
+
+async def _handle_agent_query(incident: state.Incident, query: str) -> None:
+    """Background task: run the SRE command agent and send reply to meeting."""
+    print(f"[_handle_agent_query] Launching agent query: '{query}' for incident {incident.id}", flush=True)
+    try:
+        reply = await dispatch_agent_query(query, incident)
+        print(f"[_handle_agent_query] Agent response received: '{reply}'", flush=True)
+        # Send as meeting chat message
+        if incident.meeting_baas_bot_id:
+            print(f"[_handle_agent_query] Sending chat message via bot {incident.meeting_baas_bot_id}...", flush=True)
+            await MeetingBaaSClient().send_chat_message(incident.meeting_baas_bot_id, f"[SentinelVoice] {reply}")
+        else:
+            print(f"[_handle_agent_query] No meeting_baas_bot_id on incident {incident.id}", flush=True)
+        # Broadcast to dashboard
+        await state.broadcast(incident, {
+            "type": "agent.reply",
+            "query": query,
+            "reply": reply,
+        })
+        # Speak in meeting via TTS
+        print(f"[_handle_agent_query] Triggering TTS speak_in_meeting for incident {incident.id}...", flush=True)
+        await speak_in_meeting(incident.id, reply)
+    except Exception as exc:
+        logger.exception("[%s] Agent query handler failed: %s", incident.id, exc)
+        print(f"[_handle_agent_query ERROR] {exc}", flush=True)
 
 
 async def _debug(incident: state.Incident, stage: str, message: str, **details: Any) -> None:
@@ -117,6 +147,12 @@ async def _handle_transcript(incident: state.Incident, event: dict) -> None:
         },
     )
     await state.broadcast(incident, {"type": "timeline.entry", "entry": state.entry_to_dict(entry)})
+
+    # ── Wake word detection ──────────────────────────────────────────────
+    wake_query = detect_wake_word(text)
+    if wake_query:
+        asyncio.create_task(_handle_agent_query(incident, wake_query))
+
     buffered = await buffer.add(speaker or "unknown", text)
     await _debug(
         incident,
