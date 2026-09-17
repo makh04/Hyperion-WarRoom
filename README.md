@@ -1,11 +1,74 @@
-# SentinelVoice — Backend
+# Hyperion-WarRoom — Backend
 
-A FastAPI backend for the SentinelVoice SRE incident co-pilot: it bridges Google Meet call
+A FastAPI backend for the Hyperion-WarRoom SRE incident co-pilot: it bridges Google Meet call
 audio to [AssemblyAI's Voice Agent API](https://www.assemblyai.com/docs/voice-agents/voice-agent-api),
 with **Groq** wired in as the agent's reasoning LLM, and exposes REST/WebSocket APIs for a
 live incident dashboard.
 
-## What's here vs. what's stubbed
+## Step-by-Step Installation & Execution
+
+### 1. Install Backend Dependencies
+
+Navigate to your project root directory and install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+
+```
+
+### 2. Run the FastAPI Backend (Initial Start)
+
+Start the backend server locally using `uvicorn`:
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+```
+
+### 3. Expose Localhost via Cloudflare Tunnel
+
+If you are running the app on a local network and need external APIs (like Google Meet / webhook integrations) to communicate with your app, open a new terminal window and start a Cloudflare tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+
+```
+
+*Cloudflare will generate a temporary public HTTPS URL (e.g., `[https://xxxx-xxxx.trycloudflare.com](https://xxxx-xxxx.trycloudflare.com)`). Copy this URL.*
+
+### 4. Configure Environment Variables
+
+Open your `.env` file in the project root and set the public URL returned by Cloudflare:
+
+```env
+PUBLIC_URL=https://your-cloudflare-tunnel-url.trycloudflare.com
+
+```
+
+Once saved, restart your backend server to apply the changes:
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+```
+
+### 5. Start the Frontend
+
+Navigate into the frontend directory and start a local HTTP server:
+
+```bash
+cd frontend
+python -m http.server 3000
+
+```
+
+### 6. Access the Application
+
+Open your web browser and go to:
+
+* **Home / Quick Start:** [http://localhost:3000](http://localhost:3000)
+* **Dashboard / Tool Configuration:** [http://localhost:3000/dashboard.html](http://localhost:3000/dashboard.html) *(Use this page to configure the tools and capabilities your AI agent will use during meetings).*
+## What's here vs. what's stubbez
 
 This delivers the full **backend**, built and verified against AssemblyAI's current API
 (events, tool-calling contract, and the Agents REST API were all checked live against their
@@ -68,36 +131,6 @@ and confirm your keys are wired correctly before starting the full server.
 and can be overridden with `BUFFER_SUMMARY_MODEL`. The call-end plain-text incident summary
 defaults to `openai/gpt-oss-120b` and can be overridden with `FINAL_REPORT_MODEL`.
 
-## Setup
-
-```bash
-cd sentinelvoice-backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# edit .env: at minimum set ASSEMBLYAI_API_KEY (https://www.assemblyai.com/dashboard/home)
-# and GROQ_API_KEY (https://console.groq.com/keys) if you want Groq reasoning
-```
-
-Run it:
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-Verify the core logic (no external services needed — pure Python, runs in a second):
-
-```bash
-python3 tests/test_dispatcher.py
-```
-
-Try it end-to-end with your own voice, no Meet bot required:
-
-```bash
-pip install sounddevice numpy requests
-python scripts/mic_test_client.py
-# say: "Agent, check checkout-db CPU load"
-```
 
 ## REST API
 
@@ -205,17 +238,4 @@ that path, so the default mock-only footprint stays light.
   core server. `boto3`, `sounddevice`, and `numpy` are called out as optional, only needed
   for the live-cloud path or the manual mic test client.
 
-## Known limitations (being upfront about the hard parts)
 
-- **Multi-speaker turn detection.** AssemblyAI's turn detection is tuned for one-speaker-at-
-  a-time conversation. War-room audio is many people talking over each other. The system
-  prompt handles this by instructing the agent to stay silent unless explicitly addressed
-  ("Agent, ..."), and turn-detection silence thresholds are loosened in
-  `provisioning.py`/`agent_session.py` — but this is a deliberate simplification, not a
-  solved problem. A production version would likely want a lightweight wake-word gate in
-  the bot itself, only forwarding audio to AssemblyAI once "Agent" is detected.
-- **Speaker attribution is best-effort.** `speaker.active` events from the bot's DOM
-  observer are matched to transcript lines by recency (`SPEAKER_STALENESS_SECONDS` in
-  `app/state.py`), not by hard timestamp alignment with AssemblyAI's transcript events
-  (which the API doesn't currently expose at the word level).
-- **Real cloud actions are stubbed**, not implemented — see `_execute_infra_action_live()`.
