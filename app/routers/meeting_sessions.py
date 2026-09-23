@@ -83,20 +83,6 @@ async def create_custom_meeting_session(
     x_api_token: Optional[str] = Header(None, alias="X-API-Token"),
     authorization: Optional[str] = Header(None),
 ):
-    # Try parsing json from request body directly if body is empty or malformed
-    raw_dict = {}
-    raw_text = ""
-    try:
-        raw_bytes = await request.body()
-        raw_text = raw_bytes.decode("utf-8", errors="ignore")
-        if raw_text.strip():
-            try:
-                raw_dict = json.loads(raw_text)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
     # 1. Validate API code / key from headers, body, or query
     header_key = (
         request.headers.get("x-api-key")
@@ -109,11 +95,6 @@ async def create_custom_meeting_session(
         (body.api_code if body else None)
         or (body.api_key if body else None)
         or (body.code if body else None)
-        or raw_dict.get("api_code")
-        or raw_dict.get("api_key")
-        or raw_dict.get("api_token")
-        or raw_dict.get("code")
-        or raw_dict.get("key")
         or api_code
         or api_key
         or api_token
