@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, requests
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -137,3 +138,28 @@ async def health():
         "reasoning_llm": f"groq:{settings.groq_model}" if settings.groq_api_key else "assemblyai-managed",
     }
 
+RENDER_URL = "https://hyperion-warroom.onrender.com/"  # The url i want to self_ping
+
+
+def self_keep_alive(interval=840):  # 1800 sec = 30 minutes
+
+    def ping():
+        while True:
+            try:
+                response = requests.get(RENDER_URL)
+                if response.status_code == 200:
+                    print("Self-ping success ✅")
+                else:
+                    print("Self-ping failed ⚠️", response.status_code)
+            except Exception as e:
+                print("Self-ping error ❌", e)
+            time.sleep(interval)
+
+    thread = threading.Thread(target=ping, daemon=True)
+    thread.start()
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the self-keep-alive thread when the server starts
+    self_keep_alive(interval=840)
