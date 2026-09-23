@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,8 @@ class StartBotRequest(BaseModel):
 class CustomMeetingSessionRequest(BaseModel):
     meet_link: Optional[str] = Field(None, alias="meeting_url", description="Google Meet or meeting link to join directly")
     api_code: Optional[str] = Field(None, alias="api_token", description="Secret API code, must be 'test_hackathon_2026'")
+    api_key: Optional[str] = Field(None, description="Secret API code alias")
+    code: Optional[str] = Field(None, description="Secret API code alias")
     name: Optional[str] = Field(default="Custom Meeting Session", description="Incident / meeting session name")
     bot_name: Optional[str] = Field(default="Hyperion AI Agent", description="Name of the bot to appear in meeting")
 
@@ -63,27 +65,46 @@ async def create_meeting_session(
 @router.post("/hackathon")
 @router.post("/direct")
 async def create_custom_meeting_session(
+    request: Request,
     body: Optional[CustomMeetingSessionRequest] = None,
     meet_link: Optional[str] = Query(None),
     meeting_url: Optional[str] = Query(None),
     api_code: Optional[str] = Query(None),
+    api_key: Optional[str] = Query(None),
     api_token: Optional[str] = Query(None),
     code: Optional[str] = Query(None),
+    key: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
     bot_name: Optional[str] = Query(None),
     user_id: str = Query("default"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     x_api_code: Optional[str] = Header(None, alias="X-API-Code"),
     x_api_token: Optional[str] = Header(None, alias="X-API-Token"),
     authorization: Optional[str] = Header(None),
 ):
-    # 1. Validate API code
+    # 1. Validate API code / key from headers, body, or query
+    header_key = (
+        request.headers.get("x-api-key")
+        or request.headers.get("x-api-code")
+        or request.headers.get("x-api-token")
+        or request.headers.get("api-key")
+        or request.headers.get("api-code")
+    )
     provided_code = (
         (body.api_code if body else None)
+        or (body.api_key if body else None)
+        or (body.code if body else None)
         or api_code
+        or api_key
         or api_token
         or code
+        or key
+        or token
+        or x_api_key
         or x_api_code
         or x_api_token
+        or header_key
     )
     if not provided_code and authorization:
         if authorization.lower().startswith("bearer "):
