@@ -20,7 +20,7 @@ _WAKE_PATTERN = re.compile(
 )
 
 AGENT_SYSTEM_PROMPT = """\
-You are SentinelVoice, an SRE operations agent embedded in a Google Meet incident war room.
+You are Hypernion, an SRE operations agent embedded in a Google Meet incident war room.
 You have access to a set of HTTP tools that the team has registered (Vercel, GitHub, PagerDuty, etc.).
 Your job is to take direct action when asked — restart servers, trigger deployments, query status,
 page on-call engineers, or answer questions using the current incident summary as context.

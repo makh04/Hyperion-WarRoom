@@ -41,12 +41,14 @@ class Settings:
     # default reasoning brain here. Leave GROQ_API_KEY unset to fall back to AssemblyAI's
     # managed model with zero code changes.
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    groq_onboarding_api: str = os.getenv("GROQ_ONBOARDING_API", os.getenv("GROQ_API_KEY", ""))
     groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     final_report_api_key: str = os.getenv("FINAL_REPORT_API_KEY", os.getenv("GROQ_API_KEY", ""))
     final_report_base_url: str = os.getenv("FINAL_REPORT_BASE_URL", os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"))
     buffer_summary_model: str = os.getenv("BUFFER_SUMMARY_MODEL", "qwen/qwen3.8-27b")
     final_report_model: str = os.getenv("FINAL_REPORT_MODEL", "openai/gpt-oss-120b")
+    live_website_api_token: str = os.getenv("LIVE_WEBSITE_API_TOKEN", "live_site_secret_token_123")
 
     # --- Transcript security classification ---
     prompt_guard_model: str = os.getenv(

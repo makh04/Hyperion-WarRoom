@@ -13,7 +13,7 @@ from .config import settings
 from .routers import (
     dashboard_ws, incidents, google_meet, meeting_sessions,
     meeting_stream, meeting_webhooks, summaries, transcripts,
-    tools, bot_audio_input,
+    tools, bot_audio_input, onboarding,
 )
 from .voice import bridge
 from .voice.provisioning import ensure_agent_id
@@ -41,6 +41,7 @@ app.add_middleware(
 
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
+app.include_router(onboarding.router)
 app.include_router(incidents.router)
 app.include_router(dashboard_ws.router)
 app.include_router(bridge.router)

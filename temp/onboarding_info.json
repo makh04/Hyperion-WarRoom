@@ -1,0 +1,16 @@
+{
+  "service_name": "Hyperion-WarRoom",
+  "service_summary": "This is an war room agent people host their war room Agents here and it is exactly does something like u do",
+  "developers": [
+    {
+      "email": "nabilmukerrobmakhtum@gmail.com",
+      "role": "Backend Lead",
+      "name": null
+    },
+    {
+      "email": "mr.website2021@gmail.com",
+      "role": "frontend lead",
+      "name": null
+    }
+  ]
+}
