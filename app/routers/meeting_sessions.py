@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+import logging
+from typing import Optional
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -9,6 +11,8 @@ from ..config import settings
 from ..integrations.meeting_baas import MeetingBaaSError, MeetingBaaSClient
 from ..transcript_buffer import buffer
 from .google_meet import create_open_meet_space
+
+logger = logging.getLogger("hyperion_warroom.meeting_sessions")
 
 router = APIRouter(prefix="/api/meeting-sessions", tags=["meeting-sessions"])
 
@@ -20,6 +24,13 @@ class CreateMeetingSessionRequest(BaseModel):
 
 class StartBotRequest(BaseModel):
     bot_name: str = "Hypernion_Agent"
+
+
+class CustomMeetingSessionRequest(BaseModel):
+    meet_link: Optional[str] = Field(None, alias="meeting_url", description="Google Meet or meeting link to join directly")
+    api_code: Optional[str] = Field(None, alias="api_token", description="Secret API code, must be 'test_hackathon_2026'")
+    name: Optional[str] = Field(default="Custom Meeting Session", description="Incident / meeting session name")
+    bot_name: Optional[str] = Field(default="Hyperion AI Agent", description="Name of the bot to appear in meeting")
 
 
 @router.post("")
@@ -45,6 +56,101 @@ async def create_meeting_session(
         "space_name": incident.meet_space_name,
         "access_type": space["config"]["accessType"],
         "status": incident.status,
+    }
+
+
+@router.post("/custom")
+@router.post("/hackathon")
+@router.post("/direct")
+async def create_custom_meeting_session(
+    body: Optional[CustomMeetingSessionRequest] = None,
+    meet_link: Optional[str] = Query(None),
+    meeting_url: Optional[str] = Query(None),
+    api_code: Optional[str] = Query(None),
+    api_token: Optional[str] = Query(None),
+    code: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
+    bot_name: Optional[str] = Query(None),
+    user_id: str = Query("default"),
+    x_api_code: Optional[str] = Header(None, alias="X-API-Code"),
+    x_api_token: Optional[str] = Header(None, alias="X-API-Token"),
+    authorization: Optional[str] = Header(None),
+):
+    # 1. Validate API code
+    provided_code = (
+        (body.api_code if body else None)
+        or api_code
+        or api_token
+        or code
+        or x_api_code
+        or x_api_token
+    )
+    if not provided_code and authorization:
+        if authorization.lower().startswith("bearer "):
+            provided_code = authorization[7:].strip()
+        else:
+            provided_code = authorization.strip()
+
+    if provided_code != "test_hackathon_2026":
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid or missing API code. Expected 'test_hackathon_2026'",
+        )
+
+    # 2. Validate explicit Meet link
+    provided_meet_link = (
+        (body.meet_link if body else None)
+        or meet_link
+        or meeting_url
+    )
+    if not provided_meet_link or not provided_meet_link.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required field: 'meet_link'",
+        )
+
+    session_name = name or (body.name if body and body.name else None) or "Custom Meeting Session"
+    session_bot_name = bot_name or (body.bot_name if body and body.bot_name else None) or "Hyperion AI Agent"
+
+    # 3. Create incident record in state store (Google Meet creation bypassed)
+    incident = await state.store.create(session_name, provided_meet_link.strip())
+
+    state.record_timeline(
+        incident=incident,
+        kind="system",
+        text=f"Custom session initialized with meet link: {provided_meet_link.strip()}",
+        meta={"meet_link": provided_meet_link.strip(), "bot_name": session_bot_name},
+    )
+
+    # 4. Create and launch MeetingBaaS Bot directly
+    try:
+        bot = await MeetingBaaSClient().create_audio_bot(
+            incident.meet_url,
+            incident.id,
+            session_bot_name,
+        )
+    except MeetingBaaSError as exc:
+        logger.error("MeetingBaaS error launching bot: %s", exc)
+        raise HTTPException(502, f"Failed to launch MeetingBaaS bot: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Unexpected error launching bot: %s", exc)
+        raise HTTPException(500, f"Unexpected error launching bot: {exc}") from exc
+
+    await buffer.reset()
+    incident.meeting_baas_bot_id = bot.bot_id
+    incident.meeting_baas_status = "queued"
+
+    return {
+        "status": "success",
+        "incident_id": incident.id,
+        "name": incident.name,
+        "meet_link": incident.meet_url,
+        "bot_id": bot.bot_id,
+        "bot_status": incident.meeting_baas_status,
+        "stream_url": f"/ws/meeting-baas/{incident.id}",
+        "callback_url": f"{settings.public_base_url.rstrip('/')}/ws/meeting-baas/{incident.id}",
+        "viewer_url": f"http://localhost:{settings.port}/live/{incident.id}",
+        "reused": False,
     }
 
 
