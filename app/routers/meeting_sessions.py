@@ -1,8 +1,8 @@
-from __future__ import annotations
-
+import json
 import logging
+import re
 from typing import Optional
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,8 @@ class StartBotRequest(BaseModel):
 class CustomMeetingSessionRequest(BaseModel):
     meet_link: Optional[str] = Field(None, alias="meeting_url", description="Google Meet or meeting link to join directly")
     api_code: Optional[str] = Field(None, alias="api_token", description="Secret API code, must be 'test_hackathon_2026'")
+    api_key: Optional[str] = Field(None, description="Secret API code alias")
+    code: Optional[str] = Field(None, description="Secret API code alias")
     name: Optional[str] = Field(default="Custom Meeting Session", description="Incident / meeting session name")
     bot_name: Optional[str] = Field(default="Hyperion AI Agent", description="Name of the bot to appear in meeting")
 
@@ -63,27 +65,65 @@ async def create_meeting_session(
 @router.post("/hackathon")
 @router.post("/direct")
 async def create_custom_meeting_session(
+    request: Request,
     body: Optional[CustomMeetingSessionRequest] = None,
     meet_link: Optional[str] = Query(None),
     meeting_url: Optional[str] = Query(None),
     api_code: Optional[str] = Query(None),
+    api_key: Optional[str] = Query(None),
     api_token: Optional[str] = Query(None),
     code: Optional[str] = Query(None),
+    key: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
     bot_name: Optional[str] = Query(None),
     user_id: str = Query("default"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     x_api_code: Optional[str] = Header(None, alias="X-API-Code"),
     x_api_token: Optional[str] = Header(None, alias="X-API-Token"),
     authorization: Optional[str] = Header(None),
 ):
-    # 1. Validate API code
+    # Try parsing json from request body directly if body is empty or malformed
+    raw_dict = {}
+    raw_text = ""
+    try:
+        raw_bytes = await request.body()
+        raw_text = raw_bytes.decode("utf-8", errors="ignore")
+        if raw_text.strip():
+            try:
+                raw_dict = json.loads(raw_text)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 1. Validate API code / key from headers, body, or query
+    header_key = (
+        request.headers.get("x-api-key")
+        or request.headers.get("x-api-code")
+        or request.headers.get("x-api-token")
+        or request.headers.get("api-key")
+        or request.headers.get("api-code")
+    )
     provided_code = (
         (body.api_code if body else None)
+        or (body.api_key if body else None)
+        or (body.code if body else None)
+        or raw_dict.get("api_code")
+        or raw_dict.get("api_key")
+        or raw_dict.get("api_token")
+        or raw_dict.get("code")
+        or raw_dict.get("key")
         or api_code
+        or api_key
         or api_token
         or code
+        or key
+        or token
+        or x_api_key
         or x_api_code
         or x_api_token
+        or header_key
     )
     if not provided_code and authorization:
         if authorization.lower().startswith("bearer "):
@@ -99,18 +139,43 @@ async def create_custom_meeting_session(
 
     # 2. Validate explicit Meet link
     provided_meet_link = (
-        (body.meet_link if body else None)
+        (body.meet_link if body and body.meet_link else None)
+        or raw_dict.get("meet_link")
+        or raw_dict.get("meeting_url")
+        or raw_dict.get("meet_url")
+        or raw_dict.get("meeting_link")
+        or raw_dict.get("link")
         or meet_link
         or meeting_url
     )
-    if not provided_meet_link or not provided_meet_link.strip():
+
+    # Regex fallback if JSON was escaped oddly in Windows cmd
+    if not provided_meet_link and raw_text:
+        match = re.search(r"https?://[^\s\"\'\}\],]+", raw_text)
+        if match:
+            provided_meet_link = match.group(0)
+
+    if not provided_meet_link or not str(provided_meet_link).strip():
         raise HTTPException(
             status_code=400,
             detail="Missing required field: 'meet_link'",
         )
 
-    session_name = name or (body.name if body and body.name else None) or "Custom Meeting Session"
-    session_bot_name = bot_name or (body.bot_name if body and body.bot_name else None) or "Hyperion AI Agent"
+    provided_meet_link = str(provided_meet_link).strip()
+
+    session_name = (
+        name
+        or (body.name if body and body.name else None)
+        or raw_dict.get("name")
+        or raw_dict.get("incident_name")
+        or "Custom Meeting Session"
+    )
+    session_bot_name = (
+        bot_name
+        or (body.bot_name if body and body.bot_name else None)
+        or raw_dict.get("bot_name")
+        or "Hyperion AI Agent"
+    )
 
     # 3. Create incident record in state store (Google Meet creation bypassed)
     incident = await state.store.create(session_name, provided_meet_link.strip())
