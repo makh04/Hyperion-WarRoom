@@ -51,8 +51,16 @@ Once saved, restart your backend server to apply the changes:
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```
+### 5. Connect the meeting BaaS webhook.
 
-### 5. Start the Frontend
+First create an account at Meeting Baas [https://www.meetingbaas.com/en](https://www.meetingbaas.com/en))
+Then go to [https://dashboard.meetingbaas.com/webhooks](https://dashboard.meetingbaas.com/webhooks)
+and create a webhook pointing the root at the current public URL
+Example:https://your_public_url_here/webhooks/meeting-baas
+
+* **Noted** If you are using cloudflare by default then paste the link you was provided while running this command "cloudflared tunnel --url http://localhost:8000" at step 3
+
+### 6. Start the Frontend
 
 Navigate into the frontend directory and start a local HTTP server:
 
@@ -66,7 +74,7 @@ python -m http.server 3000
 
 Open your web browser and go to:
 
-* **Home / Quick Start:** [http://localhost:3000](http://localhost:3000)
+* **Home / Quick Start:** 
 * **Dashboard / Tool Configuration:** [http://localhost:3000/dashboard.html](http://localhost:3000/dashboard.html) *(Use this page to configure the tools and capabilities your AI agent will use during meetings).*
 ## What's here vs. what's stubbez
 
