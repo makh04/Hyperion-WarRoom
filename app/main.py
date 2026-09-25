@@ -142,8 +142,7 @@ async def health():
 RENDER_URL = "https://hyperion-warroom.onrender.com"  # The url i want to self_ping
 HEALTH_URL = RENDER_URL + "/health"
 
-
-def self_keep_alive(interval=10):
+def self_keep_alive(interval=600):
 
     def ping():
         while True:
@@ -162,4 +161,6 @@ def self_keep_alive(interval=10):
 @app.on_event("startup")
 async def startup_event():
     # Start the self-keep-alive thread when the server starts
-    self_keep_alive(interval=10)
+    self_keep_alive(interval=600)
+    
+   

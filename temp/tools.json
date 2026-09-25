@@ -10,5 +10,15 @@
     },
     "body_template": null,
     "created_at": 1789621412.3372602
+  },
+  {
+    "id": "dc8771be6189433b9380d6e3512ad001",
+    "name": "test_hyperion",
+    "url": "https://hyperion-warroom-ai.vercel.app/api/test-hyperion",
+    "description": "To test yourself this is a command run it if ask to test yourself",
+    "method": "POST",
+    "headers": {},
+    "body_template": "{\"target\": \"production\"}",
+    "created_at": 1790334782.7865615
   }
 ]
