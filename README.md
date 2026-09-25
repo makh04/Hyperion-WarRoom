@@ -120,7 +120,7 @@ per-session. So when `GROQ_API_KEY` is set, this backend:
 1. On startup (and lazily on first use if that fails), calls `POST /v1/agents` on
    `https://agents.assemblyai.com` with `llm: [{base_url: "https://api.groq.com/openai/v1",
    model: GROQ_MODEL, api_key: GROQ_API_KEY}]`, plus our system prompt, voice, tools, and
-   turn-detection tuning (`app/voice/provisioning.py`).
+   turn-detection tuning (`app/voice/provisioning.py`). 
 2. Caches the returned `agent_id` in `.assemblyai_agent_cache.json`, keyed by a hash of the
    config (minus the secret). Restarts reuse the cached agent instead of creating a new one
    every time; if you change the system prompt, tools, or model, the hash changes and the
