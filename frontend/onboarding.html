@@ -35,7 +35,7 @@
     <!-- Backend Host Configuration -->
     <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--muted);">
       <span>Backend API:</span>
-      <input type="text" id="apiBaseUrl" value="http://localhost:8000" style="width:240px; padding:0.25rem 0.5rem;" />
+      <input type="text" id="apiBaseUrl" value="https://hyperion-warroom-xyig.onrender.com/" style="width:240px; padding:0.25rem 0.5rem;" />
       <button type="button" class="btn-sm btn-secondary" onclick="checkAndExtractData()">Reconnect</button>
     </div>
 
@@ -96,7 +96,7 @@
       const input = document.getElementById('apiBaseUrl');
       if (input && input.value.trim()) return input.value.trim().replace(/\/+$/, '');
       if (window.location.port === '8000') return '';
-      return 'http://localhost:8000';
+      return 'https://hyperion-warroom-xyig.onrender.com/';
     }
 
     function createDevRow(email = '', role = '') {
