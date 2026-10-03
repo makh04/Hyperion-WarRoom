@@ -4,12 +4,14 @@ import asyncio
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import requests
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 
 from .config import settings
 from .routers import (
@@ -139,7 +141,7 @@ async def health():
         "reasoning_llm": f"groq:{settings.groq_model}" if settings.groq_api_key else "assemblyai-managed",
     }
 
-RENDER_URL = "https://hyperion-warroom.onrender.com"  # The url i want to self_ping
+RENDER_URL = "https://hyperion-warroom.onrender.com"  # The url i want to self_ping for render free trial
 HEALTH_URL = RENDER_URL + "/health"
 
 def self_keep_alive(interval=600):
@@ -162,5 +164,12 @@ def self_keep_alive(interval=600):
 async def startup_event():
     # Start the self-keep-alive thread when the server starts
     self_keep_alive(interval=600)
+
+APP_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = APP_DIR / "frontend"
+if not FRONTEND_DIR.is_dir():
+    FRONTEND_DIR = APP_DIR.parent / "frontend"
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
     
    

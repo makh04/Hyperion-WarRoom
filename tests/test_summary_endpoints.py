@@ -25,6 +25,7 @@ async def main() -> None:
         json.dumps({"incident_id": "inc_endpoint", "report": "Resolved."}),
         encoding="utf-8",
     )
+    step4_report._write_report_pdf("# Resolved\n\n**Status:** complete", report_directory / "inc_endpoint.pdf")
     step3_webhook.DRAFT_SUMMARY_PATH = draft_path
     step4_report.FINAL_REPORT_DIRECTORY = report_directory
 
@@ -33,12 +34,16 @@ async def main() -> None:
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             draft_response = await client.get("/summaries/draft")
             final_response = await client.get("/summaries/final/inc_endpoint")
+            pdf_response = await client.get("/summaries/final/inc_endpoint/pdf")
             missing_response = await client.get("/summaries/final/inc_missing")
 
         assert draft_response.status_code == 200
         assert draft_response.json()["segments"][0]["segment_id"] == 1
         assert final_response.status_code == 200
         assert final_response.json()["report"] == "Resolved."
+        assert pdf_response.status_code == 200
+        assert pdf_response.headers["content-type"] == "application/pdf"
+        assert pdf_response.content.startswith(b"%PDF-")
         assert missing_response.status_code == 404
     finally:
         step3_webhook.DRAFT_SUMMARY_PATH = original_draft_path

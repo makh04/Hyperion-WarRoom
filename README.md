@@ -60,22 +60,13 @@ Example:https://your_public_url_here/webhooks/meeting-baas
 
 * **Noted** If you are using cloudflare by default then paste the link you was provided while running this command "cloudflared tunnel --url http://localhost:8000" at step 3
 
-### 6. Start the Frontend
-
-Navigate into the frontend directory and start a local HTTP server:
-
-```bash
-cd frontend
-python -m http.server 3000
-
-```
-
 ### 6. Access the Application
 
-Open your web browser and go to:
+The FastAPI server serves the frontend and API from the same origin. Start Uvicorn as above, then open:
 
-* **Home / Quick Start:** 
-* **Dashboard / Tool Configuration:** [http://localhost:3000/dashboard.html](http://localhost:3000/dashboard.html) *(Use this page to configure the tools and capabilities your AI agent will use during meetings).*
+* **Home / Quick Start:** [http://localhost:8000](http://localhost:8000)
+* **Dashboard / Tool Configuration:** [http://localhost:8000/dashboard.html](http://localhost:8000/dashboard.html) *(Use this page to configure the tools and capabilities your AI agent will use during meetings).*
+* **Onboarding:** [http://localhost:8000/onboarding.html](http://localhost:8000/onboarding.html)
 ## What's here vs. what's stubbez
 
 This delivers the full **backend**, built and verified against AssemblyAI's current API
@@ -154,6 +145,8 @@ defaults to `openai/gpt-oss-120b` and can be overridden with `FINAL_REPORT_MODEL
 | `GET` | `/health` | Liveness + which reasoning LLM is active |
 | `POST` | `/transcripts` | Add `{"speaker": str, "message": str}` to the three-minute buffer |
 | `GET` | `/transcripts` | Inspect the current three-minute transcript window |
+| `GET` | `/summaries/final/{incident_id}` | Read the final Markdown incident report |
+| `GET` | `/summaries/final/{incident_id}/pdf` | Download the formatted final incident report as PDF |
 
 ### Live MeetingBaaS transcription
 

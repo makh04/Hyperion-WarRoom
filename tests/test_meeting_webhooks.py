@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import state  # noqa: E402
-from app.routers.meeting_webhooks import meeting_baas_webhook  # noqa: E402
+from app.routers import meeting_webhooks  # noqa: E402
 
 
 class FakeSocket:
@@ -22,10 +22,32 @@ class FakeSocket:
 async def main() -> None:
     incident = await state.store.create("chat test")
     incident.meeting_baas_bot_id = "bot-chat"
+
+    finalized = []
+
+    async def fake_finalize(received_incident, event, transcript_buffer):
+        finalized.append((received_incident.id, event["event"]))
+        return {"saved_path": "temp/report.json", "report": "# Summary", "model": "test"}
+
+    original_finalizer = meeting_webhooks.finalize_incident
+    meeting_webhooks.finalize_incident = fake_finalize
+    end_result = await meeting_webhooks.meeting_baas_webhook({
+        "event": "bot.status_change",
+        "data": {
+            "bot_id": "bot-chat",
+            "status": {"code": "call_ended", "created_at": "2026-09-04T12:00:00Z"},
+        },
+    })
+    meeting_webhooks.finalize_incident = original_finalizer
+    assert finalized == [(incident.id, "bot.status_change")]
+    assert end_result["handled"] is True
+    assert end_result["event"] == "CALL_ENDED"
+    assert incident.status == "resolved"
+
     socket = FakeSocket()
     incident.dashboard_sockets.add(socket)
 
-    result = await meeting_baas_webhook({
+    result = await meeting_webhooks.meeting_baas_webhook({
         "event": "bot.chat_message",
         "data": {
             "bot_id": "bot-chat",

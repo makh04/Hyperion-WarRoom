@@ -24,6 +24,7 @@ google-auth-httplib2>=0.2
  numpy>=1.26
 # Groq LLM & TTS
 groq>=0.9.0
+reportlab>=4.2
 edge-tts>=6.1.9
 miniaudio>=1.0.0
 

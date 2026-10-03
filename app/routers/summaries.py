@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from ..integrations import step3_webhook, step4_report
 
@@ -39,3 +40,13 @@ async def get_final_summary(incident_id: str) -> dict[str, Any]:
         step4_report.FINAL_REPORT_DIRECTORY / f"{incident_id}.json",
         "final summary is not available",
     )
+
+
+@router.get("/final/{incident_id}/pdf")
+async def get_final_summary_pdf(incident_id: str) -> FileResponse:
+    if not _INCIDENT_ID_PATTERN.fullmatch(incident_id):
+        raise HTTPException(400, "invalid incident id")
+    path = step4_report.FINAL_REPORT_DIRECTORY / f"{incident_id}.pdf"
+    if not path.is_file():
+        raise HTTPException(404, "final summary PDF is not available")
+    return FileResponse(path, media_type="application/pdf", filename=f"{incident_id}-summary.pdf")

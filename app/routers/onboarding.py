@@ -20,6 +20,11 @@ from .google_meet import create_open_meet_space
 logger = logging.getLogger("hyperion_warroom.onboarding")
 
 router = APIRouter(tags=["onboarding"])
+APP_DIR = Path(__file__).resolve().parents[1]
+FRONTEND_DIR = APP_DIR / "frontend"
+if not FRONTEND_DIR.is_dir():
+    FRONTEND_DIR = APP_DIR.parent / "frontend"
+
 
 TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
@@ -283,7 +288,7 @@ async def handle_live_website_request(
 @router.get("/onboarding.html")
 @router.get("/onboarding")
 async def serve_onboarding_html():
-    path = Path("frontend/onboarding.html")
+    path = FRONTEND_DIR / "onboarding.html"
     if not path.exists():
         raise HTTPException(404, "onboarding.html not found")
     return FileResponse(str(path))

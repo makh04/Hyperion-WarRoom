@@ -87,9 +87,11 @@ async def main() -> None:
         assert [segment["segment_id"] for segment in saved["source"]["latest_step3_json_state"]["segments"]] == [1, 2]
         assert isinstance(saved["report"], str)
         assert Path(result["summary_path"]).read_text(encoding="utf-8").strip() == REPORT
+        pdf_content = Path(result["pdf_path"]).read_bytes()
+        assert pdf_content.startswith(b"%PDF-")
 
         async def fake_finalize(*args, **kwargs):
-            return {"saved_path": "temp/step4_test_reports/inc.json", "report": REPORT, "model": "configured-120b"}
+            raise AssertionError("a repeated completion event must reuse the saved report")
 
         meeting_webhooks.finalize_incident = fake_finalize
         webhook_result = await meeting_webhooks.meeting_baas_webhook({

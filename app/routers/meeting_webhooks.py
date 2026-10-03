@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from .. import state
-from ..integrations.step4_report import FinalReportError, finalize_incident
+from ..integrations.step4_report import FinalReportError, finalize_incident, load_saved_final_report
 from ..integrations.meeting_baas import MeetingBaaSClient
 from ..transcript_buffer import buffer
 from .transcripts import process_completed_window
@@ -54,10 +54,14 @@ def _chat_message(event: dict[str, Any]) -> tuple[str, str, str | None] | None:
 
 
 def _call_ended_bot_id(event: dict[str, Any]) -> str | None:
-    event_name = str(event.get("event", "")).upper()
+    event_name = str(event.get("event", "")).lower()
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
-    status = str(data.get("status", data.get("state", ""))).upper()
-    if event_name not in {"CALL_ENDED", "BOT.CALL_ENDED", "BOT_CALL_ENDED"} and status != "CALL_ENDED":
+    status_value = data.get("status", data.get("state", ""))
+    if isinstance(status_value, dict):
+        status_value = status_value.get("code", "")
+    status = str(status_value).lower()
+    ended_events = {"call_ended", "bot.call_ended", "bot_call_ended", "bot.completed", "bot_completed"}
+    if event_name not in ended_events and status not in {"call_ended", "completed"}:
         return None
     bot_id = data.get("bot_id") or event.get("bot_id")
     return bot_id if isinstance(bot_id, str) else None
@@ -71,7 +75,9 @@ async def meeting_baas_webhook(event: dict[str, Any]):
         if incident is None:
             raise HTTPException(404, "meeting bot is not linked to an incident")
         try:
-            result = await finalize_incident(incident, event, buffer)
+            result = load_saved_final_report(incident.id)
+            if result is None:
+                result = await finalize_incident(incident, event, buffer)
         except FinalReportError as exc:
             print(f"[{incident.id}] Reasoning model failed: {exc}", flush=True)
             await state.broadcast(incident, {

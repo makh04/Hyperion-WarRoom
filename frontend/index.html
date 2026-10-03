@@ -116,8 +116,19 @@
     #summary-output {
       margin-top:14px; background:var(--surface2); border:1px solid var(--border);
       border-radius:7px; padding:14px; font-size:.82rem; line-height:1.65;
-      white-space:pre-wrap; word-break:break-word; max-height:380px; overflow-y:auto;
-      font-family:'Cascadia Code','Fira Code',monospace;
+      word-break:break-word; max-height:380px; overflow-y:auto;
+    }
+    #summary-output h1, #summary-output h2, #summary-output h3 {
+      margin:0 0 10px; color:var(--text); line-height:1.3;
+    }
+    #summary-output h1 { font-size:1.15rem; }
+    #summary-output h2 { font-size:1rem; }
+    #summary-output h3 { font-size:.9rem; }
+    #summary-output p { margin:0 0 10px; }
+    #summary-output ul, #summary-output ol { margin:0 0 10px; padding-left:22px; }
+    #summary-output code { font-family:'Cascadia Code','Fira Code',monospace; }
+    #summary-output .summary-json { white-space:pre-wrap; font-family:'Cascadia Code','Fira Code',monospace; }
+    #summary-output .summary-download { margin-top:12px; }
     }
     ::-webkit-scrollbar { width:6px; }
     ::-webkit-scrollbar-track { background:transparent; }
@@ -255,6 +266,7 @@
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="fetchSummary('draft')">&#128203; Draft Summary</button>
         <button class="btn btn-ghost" onclick="fetchSummary('final')">&#128196; Final Report</button>
+        <button class="btn btn-ghost" id="download-summary-pdf" onclick="downloadSummaryPdf()" disabled>&#8681; Download PDF</button>
       </div>
       <div id="summary-output" class="hidden"></div>
       <div class="hidden alert alert-err" id="summary-error"></div>
@@ -405,6 +417,46 @@
   }
 
   /* ── Step 5 ── */
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  }
+
+  function renderMarkdown(markdown) {
+    const lines = escapeHtml(markdown).split(/\r?\n/);
+    const blocks = [];
+    let paragraph = [];
+    let listType = null;
+    const inline = text => text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    const flushParagraph = () => {
+      if (paragraph.length) blocks.push('<p>' + inline(paragraph.join('<br>')) + '</p>');
+      paragraph = [];
+    };
+    const closeList = () => {
+      if (listType) blocks.push('</' + listType + '>');
+      listType = null;
+    };
+    for (const line of lines) {
+      const heading = line.match(/^(#{1,3})\s+(.+)$/);
+      const item = line.match(/^\s*(?:[-*+]\s+|\d+[.)]\s+)(.+)$/);
+      if (heading) {
+        flushParagraph(); closeList();
+        const level = heading[1].length;
+        blocks.push('<h' + level + '>' + inline(heading[2]) + '</h' + level + '>');
+      } else if (item) {
+        flushParagraph();
+        const nextType = /^\s*\d+[.)]\s+/.test(line) ? 'ol' : 'ul';
+        if (listType !== nextType) { closeList(); blocks.push('<' + nextType + '>'); listType = nextType; }
+        blocks.push('<li>' + inline(item[1]) + '</li>');
+      } else if (!line.trim()) {
+        flushParagraph(); closeList();
+      } else {
+        closeList(); paragraph.push(line);
+      }
+    }
+    flushParagraph(); closeList();
+    return blocks.join('');
+  }
+
   async function fetchSummary(type) {
     hideError('summary-error');
     const out = document.getElementById('summary-output');
@@ -419,10 +471,29 @@
       const res = await fetch(url, { credentials: 'include' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'HTTP ' + res.status);
-      out.textContent = JSON.stringify(data, null, 2);
+      if (type === 'final' && typeof data.report === 'string') {
+        out.innerHTML = renderMarkdown(data.report);
+        document.getElementById('download-summary-pdf').disabled = false;
+      } else {
+        out.innerHTML = '<div class="summary-json">' + escapeHtml(JSON.stringify(data, null, 2)) + '</div>';
+      }
     } catch(e) {
       out.classList.add('hidden'); showError('summary-error', e.message);
     }
+  }
+
+  async function downloadSummaryPdf() {
+    if (!currentIncidentId) return;
+    const response = await fetch(API + '/summaries/final/' + currentIncidentId + '/pdf', { credentials: 'include' });
+    if (!response.ok) {
+      showError('summary-error', 'Final report PDF is not available.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(await response.blob());
+    link.download = currentIncidentId + '-summary.pdf';
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   checkAuth();
